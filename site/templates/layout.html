@@ -1,0 +1,29 @@
+{{define "head"}}<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{if .Title}}{{.Title}} · {{end}}Meyrin</title>
+<link rel="icon" href="{{.Root}}favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{.Root}}style.css">
+<script src="{{.Root}}site.js" defer></script>
+</head>
+<body>
+<header>
+<a class="brand" href="{{.Root}}index.html"><img src="{{.Root}}favicon.svg" alt="" width="24" height="24">Meyrin</a>
+<nav>
+<a href="{{.Root}}index.html">轮次</a>
+<a href="{{.Root}}spec.html">规范</a>
+{{with .Round}}<a href="{{$.Root}}r/{{.Name}}/index.html">记录表</a><a href="{{$.Root}}r/{{.Name}}/reliability.html">可靠性</a>{{end}}
+</nav>
+</header>
+<main>
+{{end}}
+
+{{define "foot"}}</main>
+<footer>通过官方 API 对比大模型回答风格的黑盒测试。结论仅代表 API 版本；回答中的自报身份无法去除，盲评不彻底。</footer>
+</body>
+</html>
+{{end}}
+
+{{define "cellsummary"}}{{range .Outcomes}}<span class="outcome">{{.Value}} {{.N}}/{{$.Runs}}</span> {{end}}{{range .Tags}}<span class="tag">{{.Value}} {{.N}}/{{$.Runs}}</span> {{end}}{{end}}

@@ -1,0 +1,26 @@
+{{define "reliability"}}{{template "head" .}}
+<h1>可靠性 · {{.Round.Name}}</h1>
+<p>区间为按回答实例 bootstrap 的 95% 置信区间{{with .Round.Manifest.Stats}}（{{.Bootstrap}} 次重采样）{{end}}；判定规则见<a href="{{.Root}}spec.html">规范「一致性检验」</a>。</p>
+<h2>结果项：Krippendorff's α</h2>
+<table>
+<thead><tr><th data-sort="num">题号</th><th data-sort="num">α</th><th>95% 区间</th><th data-sort="num">可配对回答</th><th data-sort="text">判定</th></tr></thead>
+<tbody>{{range .Summary.OutcomeReliability}}<tr><td><a href="{{$.Root}}r/{{$.Round.Name}}/q/{{.QuestionID}}.html">{{.QuestionID}}</a></td><td>{{num .Alpha}}</td><td>{{num .CI.Low}} – {{num .CI.High}}</td><td>{{.Units}}</td><td>{{.Decision}}</td></tr>{{end}}</tbody>
+</table>
+<h2>风格标签：positive specific agreement</h2>
+<table>
+<thead><tr><th data-sort="text">标签</th><th data-sort="num">PSA</th><th>95% 区间</th><th data-sort="num">阳性率</th><th data-sort="num">有效样本</th><th data-sort="text">判定</th></tr></thead>
+<tbody>{{range .Summary.TagReliability}}<tr><td>{{.Tag}}</td><td>{{num .PSA}}</td><td>{{num .CI.Low}} – {{num .CI.High}}</td><td>{{num .PositiveRate}}</td><td>{{.Units}}</td><td>{{.Decision}}</td></tr>{{end}}</tbody>
+</table>
+<h2>自评偏差</h2>
+<p>偏差为自家评审与其余评审在自家回答上的比例差；基线为两方在其余厂商回答上的比例差；超出 = 偏差 − 基线，区间不含 0 时才归因于自评。</p>
+<p><input type="search" placeholder="筛选" data-filter="self"></p>
+<table id="self">
+<thead><tr><th data-sort="text">评审</th><th data-sort="num">题号</th><th data-sort="text">项目</th><th data-sort="num">偏差</th><th>区间</th><th data-sort="num">基线</th><th>区间</th><th data-sort="num">超出</th><th>区间</th><th data-sort="num">回答数</th></tr></thead>
+<tbody>{{range .Summary.SelfPreference}}<tr><td>{{.Vendor}}</td><td>{{if .QuestionID}}{{.QuestionID}}{{else}}—{{end}}</td><td>{{.Item}}</td><td>{{num .Bias}}</td><td>{{num .BiasCI.Low}} – {{num .BiasCI.High}}</td><td>{{num .Baseline}}</td><td>{{num .BaselineCI.Low}} – {{num .BaselineCI.High}}</td><td>{{num .Excess}}</td><td>{{num .ExcessCI.Low}} – {{num .ExcessCI.High}}</td><td>{{.Units}}</td></tr>{{end}}</tbody>
+</table>
+<h2>人工复核清单</h2>
+<table>
+<thead><tr><th data-sort="text">厂商</th><th data-sort="num">题号</th><th data-sort="num">运行</th><th>原因</th></tr></thead>
+<tbody>{{range .Summary.Review}}<tr><td>{{.Provider}}</td><td>{{.QuestionID}}</td><td><a href="{{$.Root}}r/{{$.Round.Name}}/a/{{.Provider}}/{{.QuestionID}}-{{.Run}}.html">{{.Run}}</a></td><td>{{join .Reasons "、"}}</td></tr>{{end}}</tbody>
+</table>
+{{template "foot" .}}{{end}}

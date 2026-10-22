@@ -1,0 +1,17 @@
+{{define "model"}}{{template "head" .}}
+<h1>{{.Provider}}</h1>
+{{with .Round.Manifest.Run}}{{range .Vendors}}{{if eq .Name $.Provider}}<p class="meta">请求模型 <code>{{.Model}}</code> · 协议 {{.Protocol}} · 服务端存储 {{.Store}}</p>{{end}}{{end}}{{end}}
+<p class="meta">响应中返回的模型：{{join (index .Returned .Provider) "、"}}</p>
+<p><input type="search" placeholder="筛选题目或内容" data-filter="model"></p>
+<table id="model">
+<thead><tr><th data-sort="num">题号</th><th data-sort="text">题目</th><th>汇总</th><th>回答</th></tr></thead>
+<tbody>
+{{range $q := .Round.Questions}}{{$c := cell $.Cells $.Provider $q.ID}}{{if $c.Runs}}<tr>
+<td><a href="{{$.Root}}r/{{$.Round.Name}}/q/{{$q.ID}}.html">{{$q.ID}}</a></td>
+<td>{{$q.Title}}</td>
+<td>{{template "cellsummary" $c}}</td>
+<td>{{range runs $c}}<a href="{{$.Root}}r/{{$.Round.Name}}/a/{{$.Provider}}/{{$q.ID}}-{{.}}.html">第 {{.}} 次</a> {{end}}</td>
+</tr>{{end}}{{end}}
+</tbody>
+</table>
+{{template "foot" .}}{{end}}
