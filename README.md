@@ -20,19 +20,32 @@ Judge agreement is reported as Krippendorff's α (outcomes) and positive specifi
 
 ## Prerequisites
 
-- Python 3 (standard library only), for regenerating the question bank
+- Go 1.27+
 
 ## Example
 
 Regenerate the machine-readable question bank from the specification:
 
 ```bash
-python3 build_bank.py docs/SPEC.md data/questions.jsonl
+go run ./cmd/meyrin bank build
 ```
 
 ```text
-wrote 37 records
+wrote 37 questions to data/questions.jsonl
 ```
+
+## Commands
+
+Run from the repository root; paths default to the repository layout.
+
+| Command | Purpose |
+|---|---|
+| `go run ./cmd/meyrin bank build` | Regenerate `data/questions.jsonl` from `docs/SPEC.md` |
+| `go run ./cmd/meyrin bank check` | Verify that the committed bank matches the spec byte for byte |
+| `go run ./cmd/meyrin models check` | Verify `configs/models.yaml` against the spec, `docs/api-endpoints.md`, and `.env.example` |
+| `go run ./cmd/meyrin run -round <ROUND> -dry-run` | Print every request without sending it or reading credentials |
+| `go run ./cmd/meyrin run -round <ROUND> [-runs 3] [-only q1,q24] [-vendors <A,B>]` | Call the models under test and append results to `results/<ROUND>/`; rerunning resumes |
+| `go test ./...` | Run the unit tests |
 
 ## Documentation
 
@@ -40,6 +53,8 @@ wrote 37 records
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | Test specification: prompts, outcome options, style tags, judging, reliability thresholds |
 | [docs/api-endpoints.md](docs/api-endpoints.md) | Official API key pages, base URLs, and documentation for each vendor |
+| [docs/architecture.md](docs/architecture.md) | Pipeline, package layout, provider protocols, result files, security model |
+| [docs/dev-guide.md](docs/dev-guide.md) | Environment, development order, spec and bank sync, CI |
 
 ## Honest Limitations
 
@@ -52,13 +67,13 @@ Released under the [Apache License 2.0](LICENSE) and the [Creative Commons Attri
 
 | Path | License |
 |---|---|
-| `build_bank.py`, `docs/api-endpoints.md`, `assets/` | Apache-2.0 ([LICENSE](LICENSE)) |
 | `docs/SPEC.md`, `data/questions.jsonl` | CC BY-NC 4.0 ([LICENSE-DATA](LICENSE-DATA)) |
+| All other paths | Apache-2.0 ([LICENSE](LICENSE)) |
 
 This project is developed and maintained by individual contributors on a voluntary, non-commercial basis.
 
 This software is provided "as is", without warranty of any kind, express or implied. The authors are not liable for any damage arising from its use, including but not limited to data loss, system damage, or security incidents. See the [LICENSE](LICENSE) file for the full terms.
 
-`build_bank.py` reads `docs/SPEC.md` and writes `data/questions.jsonl`; it makes no network requests. Running the test procedure in `docs/SPEC.md` sends prompts to third-party model APIs with credentials supplied by the runner, and the responses are third-party content governed by each vendor's terms.
+`meyrin bank` and `meyrin models` read and write repository files only; they make no network requests. `meyrin run` sends the prompts in `data/questions.jsonl` to the vendor APIs configured in `configs/models.yaml`, using keys from `.env`; keys never appear in results or logs, and requests opt out of server-side storage where the API allows it. Running the test procedure in `docs/SPEC.md` sends prompts to third-party model APIs with credentials supplied by the runner, and the responses are third-party content governed by each vendor's terms.
 
 Any commercial entity using this software is solely responsible for its own compliance with applicable laws and regulations, including but not limited to the EU Cyber Resilience Act (CRA) and any other regional requirements.
