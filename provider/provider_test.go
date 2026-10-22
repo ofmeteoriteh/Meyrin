@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -186,10 +187,10 @@ func TestClientSend(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				got = r.Header.Clone()
 				if tt.endpoint.Protocol == config.AnthropicMessages {
-					w.Write([]byte(`{"model":"c","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}`))
+					respond(t, w, `{"model":"c","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn"}`)
 					return
 				}
-				w.Write([]byte(`{"model":"c","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`))
+				respond(t, w, `{"model":"c","choices":[{"message":{"content":"ok"},"finish_reason":"stop"}]}`)
 			}))
 			defer srv.Close()
 
@@ -215,11 +216,11 @@ func TestClientErrors(t *testing.T) {
 		case "/limited":
 			w.Header().Set("Retry-After", "7")
 			w.WriteHeader(http.StatusTooManyRequests)
-			w.Write([]byte(`{"error":"bad key ` + key + `"}`))
+			respond(t, w, `{"error":"bad key `+key+`"}`)
 		case "/bad":
 			w.WriteHeader(http.StatusBadRequest)
 		default:
-			w.Write([]byte(`{"choices":[]}`))
+			respond(t, w, `{"choices":[]}`)
 		}
 	}))
 	defer srv.Close()
@@ -262,3 +263,29 @@ func TestRedactTruncatesOnRuneBoundary(t *testing.T) {
 }
 
 func utf8Valid(s string) bool { return strings.ToValidUTF8(s, "�") == s }
+
+// respond 在测试服务器中写出响应体；处理函数运行在其他 goroutine，只能用 t.Error。
+// respond writes a response body in a test server; handlers run on another goroutine, so it uses t.Error.
+func respond(t *testing.T, w http.ResponseWriter, body string) {
+	if _, err := io.WriteString(w, body); err != nil {
+		t.Error(err)
+	}
+}
+
+func TestJudgeBody(t *testing.T) {
+	got, err := JudgeBody(JudgeRequest{Model: "m", System: "s", User: "<u>", MaxTokens: 10, JSON: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `{"model":"m","messages":[{"role":"system","content":"s"},{"role":"user","content":"<u>"}],"max_tokens":10,"response_format":{"type":"json_object"}}`
+	if string(got) != want {
+		t.Fatalf("body = %s", got)
+	}
+	got, err = JudgeBody(JudgeRequest{Model: "m", User: "u", MaxTokens: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := `{"model":"m","messages":[{"role":"user","content":"u"}],"max_tokens":10}`; string(got) != want {
+		t.Fatalf("body = %s", got)
+	}
+}

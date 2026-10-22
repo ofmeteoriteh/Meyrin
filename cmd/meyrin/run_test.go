@@ -47,7 +47,9 @@ func TestSelectTargets(t *testing.T) {
 
 func TestAttachClientsListsEveryGap(t *testing.T) {
 	env := filepath.Join(t.TempDir(), ".env")
-	os.WriteFile(env, []byte("A_API_KEY=sk-a\n"), 0o644)
+	if err := os.WriteFile(env, []byte("A_API_KEY=sk-a\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	targets := []runner.Target{
 		{Vendor: config.Vendor{Name: "A", KeyEnv: "A_API_KEY", Model: "m"}},
 		{Vendor: config.Vendor{Name: "B", KeyEnv: "B_API_KEY"}},

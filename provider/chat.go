@@ -34,6 +34,43 @@ func (chatAdapter) body(req Request) any {
 
 func (chatAdapter) headers() map[string]string { return nil }
 
+// JudgeRequest 是发给评审模型的请求：可选的 system prompt 与一条用户消息。
+// JudgeRequest is a call to a judge: an optional system prompt and one user message.
+type JudgeRequest struct {
+	Model     string
+	System    string
+	User      string
+	MaxTokens int
+	// JSON 要求输出 JSON 对象 / JSON asks for a JSON object as output
+	JSON bool
+}
+
+type responseFormat struct {
+	Type string `json:"type"`
+}
+
+type judgeBody struct {
+	Model          string          `json:"model"`
+	Messages       []chatMessage   `json:"messages"`
+	MaxTokens      int             `json:"max_tokens"`
+	ResponseFormat *responseFormat `json:"response_format,omitempty"`
+}
+
+// JudgeBody 按 Chat Completions 编码评审请求；两个评审席位都走该协议。
+// JudgeBody encodes a judge request as Chat Completions, the protocol both judge seats use.
+func JudgeBody(req JudgeRequest) ([]byte, error) {
+	var msgs []chatMessage
+	if req.System != "" {
+		msgs = append(msgs, chatMessage{Role: "system", Content: req.System})
+	}
+	msgs = append(msgs, chatMessage{Role: RoleUser, Content: req.User})
+	b := judgeBody{Model: req.Model, Messages: msgs, MaxTokens: req.MaxTokens}
+	if req.JSON {
+		b.ResponseFormat = &responseFormat{Type: "json_object"}
+	}
+	return encode(b)
+}
+
 func (chatAdapter) parse(data []byte) (Response, error) {
 	var r struct {
 		Model   string `json:"model"`

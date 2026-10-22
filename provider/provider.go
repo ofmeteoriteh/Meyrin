@@ -1,13 +1,13 @@
 // Package provider 把一段对话发给某家厂商的 API，并把响应统一成相同的字段。
 // 四类协议各有一个 adapter，只负责构造请求体与解析响应体；HTTP 传输在 Client 中，
-// 重试策略由调用方决定。请求只含对话、模型 ID、输出上限与关闭服务端存储，
-// 采样与推理参数一律不传。
+// 重试策略由调用方决定。受测请求只含对话、模型 ID、输出上限与关闭服务端存储；
+// 评审请求另带 system prompt 并要求输出 JSON 对象。采样与推理参数一律不传。
 //
 // Package provider sends a conversation to a vendor API and normalizes the response.
 // Each protocol has an adapter that only builds request bodies and parses responses;
 // HTTP transport lives in Client and the caller owns the retry policy. Requests carry
-// the conversation, model ID, output limit and storage opt-out, never sampling or
-// reasoning parameters.
+// the conversation, model ID, output limit and storage opt-out; judge requests add a
+// system prompt and ask for a JSON object. Sampling and reasoning parameters are never sent.
 package provider
 
 import (
@@ -71,11 +71,16 @@ func Body(p config.Protocol, req Request) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("unknown protocol %q", p)
 	}
-	// 不转义 <>&，记录中的 request 与提示词原文一致 / Keep <>& literal so recorded requests read like the prompts
+	return encode(a.body(req))
+}
+
+// encode 编码请求体，不转义 <>&，记录中的 request 与提示词原文一致。
+// encode marshals a request body with <>& kept literal, so recorded requests read like the prompts.
+func encode(v any) ([]byte, error) {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	if err := enc.Encode(a.body(req)); err != nil {
+	if err := enc.Encode(v); err != nil {
 		return nil, err
 	}
 	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil

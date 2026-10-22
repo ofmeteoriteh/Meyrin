@@ -21,6 +21,10 @@ import (
 const (
 	ManifestFile  = "manifest.json"
 	ResponsesFile = "responses.jsonl"
+	MetricsFile   = "metrics.jsonl"
+	SummaryFile   = "summary.json"
+	// BankFile 是开轮时复制的题库，后续步骤与站点都读这份 / BankFile is the bank copied when a round starts, read by every later step
+	BankFile = "questions.jsonl"
 )
 
 // roundName 限制轮次名只含安全字符，防止路径穿越 / roundName keeps round names path-safe
@@ -64,11 +68,16 @@ func (r Record) Key() Key {
 	return Key{r.Provider, r.QuestionID, r.Run}
 }
 
-// LoadRecords 读取已完成的记录；文件不存在时返回空。末行不完整说明上次写入中断，须先人工处理。
-// LoadRecords reads finished records; a missing file is empty. An unterminated last line
-// means an interrupted write and must be resolved by hand.
+// LoadRecords 读取已完成的回答记录 / LoadRecords reads finished response records
 func LoadRecords(dir string) ([]Record, error) {
-	data, err := os.ReadFile(filepath.Join(dir, ResponsesFile))
+	return LoadLines[Record](dir, ResponsesFile)
+}
+
+// LoadLines 读取目录中的 JSONL 文件；文件不存在时返回空。末行不完整说明上次写入中断，须先人工处理。
+// LoadLines reads a JSONL file in dir; a missing file is empty. An unterminated last line
+// means an interrupted write and must be resolved by hand.
+func LoadLines[T any](dir, name string) ([]T, error) {
+	data, err := os.ReadFile(filepath.Join(dir, name))
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -79,39 +88,39 @@ func LoadRecords(dir string) ([]Record, error) {
 		return nil, nil
 	}
 	if !bytes.HasSuffix(data, []byte("\n")) {
-		return nil, fmt.Errorf("%s ends with an incomplete line; remove it before resuming", ResponsesFile)
+		return nil, fmt.Errorf("%s ends with an incomplete line; remove it before resuming", name)
 	}
-	var recs []Record
+	var rows []T
 	for i, line := range bytes.Split(bytes.TrimSuffix(data, []byte("\n")), []byte("\n")) {
-		var r Record
+		var r T
 		if err := json.Unmarshal(line, &r); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", ResponsesFile, i+1, err)
+			return nil, fmt.Errorf("%s line %d: %w", name, i+1, err)
 		}
-		recs = append(recs, r)
+		rows = append(rows, r)
 	}
-	return recs, nil
+	return rows, nil
 }
 
-// Writer 以单次写入追加一段对话的全部记录 / Writer appends a conversation's records in one write
-type Writer struct {
+// Writer 以单次写入追加一组 JSONL 行 / Writer appends a group of JSONL lines in one write
+type Writer[T any] struct {
 	f *os.File
 }
 
-// OpenWriter 打开记录文件用于追加 / OpenWriter opens the record file for appending
-func OpenWriter(dir string) (*Writer, error) {
-	f, err := os.OpenFile(filepath.Join(dir, ResponsesFile), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+// OpenWriter 打开目录中的 JSONL 文件用于追加 / OpenWriter opens a JSONL file in dir for appending
+func OpenWriter[T any](dir, name string) (*Writer[T], error) {
+	f, err := os.OpenFile(filepath.Join(dir, name), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return nil, err
 	}
-	return &Writer{f: f}, nil
+	return &Writer[T]{f: f}, nil
 }
 
-// Append 写入一段对话并落盘 / Append writes one conversation and syncs it to disk
-func (w *Writer) Append(recs []Record) error {
+// Append 写入一组行并落盘，非 ASCII 字符原样输出 / Append writes rows and syncs them, keeping non-ASCII raw
+func (w *Writer[T]) Append(rows []T) error {
 	var buf bytes.Buffer
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
-	for _, r := range recs {
+	for _, r := range rows {
 		if err := enc.Encode(r); err != nil {
 			return err
 		}
@@ -122,7 +131,7 @@ func (w *Writer) Append(recs []Record) error {
 	return w.f.Sync()
 }
 
-// Close 关闭记录文件 / Close closes the record file
-func (w *Writer) Close() error {
+// Close 关闭文件 / Close closes the file
+func (w *Writer[T]) Close() error {
 	return w.f.Close()
 }

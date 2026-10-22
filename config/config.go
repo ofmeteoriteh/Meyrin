@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/url"
 	"slices"
+	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -62,6 +63,31 @@ type Judge struct {
 	KeyEnv     string `yaml:"key_env"`
 	BaseURLEnv string `yaml:"base_url_env"`
 	Model      string `yaml:"model"`
+}
+
+// judgePath 是订阅席位 base URL 之后的请求路径 / judgePath follows a subscription seat's base URL
+const judgePath = "/chat/completions"
+
+// Endpoint 返回评审席位的端点：官方 API 取自端点文档且须为 Chat Completions；订阅席位的请求
+// 发往 BaseURLEnv 所指 base URL 之后的 judgePath，以 Bearer 鉴权。
+//
+// Endpoint resolves a judge seat: official API seats come from the endpoint document and
+// must speak Chat Completions; subscription seats post to judgePath under the base URL
+// named by BaseURLEnv, with Bearer auth.
+func (j Judge) Endpoint(endpoints map[string]Endpoint, env map[string]string) (Endpoint, error) {
+	if j.Access == AccessAPI {
+		ep, ok := endpoints[j.Vendor]
+		if !ok || ep.Protocol != OpenAIChat {
+			return Endpoint{}, fmt.Errorf("judge %q needs an %s endpoint", j.Vendor, OpenAIChat)
+		}
+		return ep, nil
+	}
+	base := env[j.BaseURLEnv]
+	u, err := url.Parse(base)
+	if base == "" || err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return Endpoint{}, fmt.Errorf("judge %q: %s must be an http(s) base URL", j.Vendor, j.BaseURLEnv)
+	}
+	return Endpoint{URL: strings.TrimSuffix(base, "/") + judgePath, Auth: AuthBearer, Protocol: OpenAIChat}, nil
 }
 
 // LoadModels 解析模型清单，拒绝未知字段 / LoadModels parses the model list and rejects unknown fields

@@ -25,7 +25,7 @@ func TestAppendAndLoadRecords(t *testing.T) {
 		t.Fatalf("missing file = %v, %v", recs, err)
 	}
 
-	w, err := OpenWriter(dir)
+	w, err := OpenWriter[Record](dir, ResponsesFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,9 @@ func TestAppendAndLoadRecords(t *testing.T) {
 	if err := w.Append(conv); err != nil {
 		t.Fatal(err)
 	}
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	data, _ := os.ReadFile(filepath.Join(dir, ResponsesFile))
 	if !strings.Contains(string(data), `"content":"<一>"`) || !strings.Contains(string(data), `"usage":null`) {

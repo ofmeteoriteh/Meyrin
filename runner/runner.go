@@ -11,7 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"log"
 	"sync"
 	"time"
 
@@ -52,7 +52,7 @@ type Runner struct {
 	Questions []bank.Question
 	Targets   []Target
 	Runs      int
-	Log       io.Writer
+	Log       *log.Logger
 	Sleep     func(context.Context, time.Duration) error
 	Now       func() time.Time
 }
@@ -60,7 +60,7 @@ type Runner struct {
 // Run 调用全部目标厂商，记录追加到 w；done 中的对话跳过。返回失败的对话数。
 // Run calls every target vendor and appends records to w, skipping conversations in done.
 // It returns the number of failed conversations.
-func (r *Runner) Run(ctx context.Context, w *round.Writer, done map[round.Key]bool) (int, error) {
+func (r *Runner) Run(ctx context.Context, w *round.Writer[round.Record], done map[round.Key]bool) (int, error) {
 	var (
 		mu       sync.Mutex
 		failed   int
@@ -84,11 +84,11 @@ func (r *Runner) Run(ctx context.Context, w *round.Writer, done map[round.Key]bo
 					case err != nil:
 						failed++
 						if ctx.Err() == nil {
-							fmt.Fprintf(r.Log, "[%s] q%d run %d failed: %v\n", t.Vendor.Name, q.ID, run, err)
+							r.Log.Printf("[%s] q%d run %d failed: %v", t.Vendor.Name, q.ID, run, err)
 						}
 					case writeErr == nil:
 						writeErr = w.Append(recs)
-						fmt.Fprintf(r.Log, "[%s] q%d run %d ok\n", t.Vendor.Name, q.ID, run)
+						r.Log.Printf("[%s] q%d run %d ok", t.Vendor.Name, q.ID, run)
 					}
 					mu.Unlock()
 				}
@@ -121,55 +121,76 @@ func (r *Runner) conversation(ctx context.Context, t Target, q bank.Question, ru
 
 // turn 发送一轮并处理重试与截断 / turn sends one turn, handling retries and truncation
 func (r *Runner) turn(ctx context.Context, t Target, history []provider.Message) (round.Record, error) {
-	maxTokens, retries, failures := InitialMaxTokens, 0, 0
-	for {
-		body, err := provider.Body(t.Endpoint.Protocol, provider.Request{
+	a, err := Send(ctx, t.Sender, r.Sleep, func(maxTokens int) ([]byte, error) {
+		return provider.Body(t.Endpoint.Protocol, provider.Request{
 			Model: t.Vendor.Model, Messages: history, MaxTokens: maxTokens,
 		})
-		if err != nil {
-			return round.Record{}, err
-		}
-		resp, latency, err := t.Sender.Send(ctx, body)
+	})
+	if err != nil {
+		return round.Record{}, err
+	}
+	return round.Record{
+		Provider:      t.Vendor.Name,
+		Model:         t.Vendor.Model,
+		ModelReturned: a.Response.ModelReturned,
+		Request:       a.Body,
+		Content:       a.Response.Content,
+		Reasoning:     a.Response.Reasoning,
+		FinishReason:  a.Response.FinishReason,
+		Usage:         a.Response.Usage,
+		LatencyMS:     a.Latency.Milliseconds(),
+		Retries:       a.Retries,
+		Timestamp:     r.Now().Format(time.RFC3339),
+	}, nil
+}
 
-		// 临时故障按同一请求体退避重试 / Temporary faults resend the same body after backoff
+// Attempt 是一次带重试的调用结果 / Attempt is the result of one call with retries
+type Attempt struct {
+	Body     []byte
+	Response provider.Response
+	Latency  time.Duration
+	Retries  int
+}
+
+// Send 发送 build 生成的请求体：临时故障以同一请求体退避重试，截断的结果作废、把输出上限加倍后重建请求体。
+// 受测模型与评审共用这一策略。
+//
+// Send posts the body from build: temporary faults resend the same body after backoff, and a
+// truncated result is discarded and rebuilt with a doubled output limit. Models under test
+// and judges share this policy.
+func Send(ctx context.Context, s Sender, sleep func(context.Context, time.Duration) error, build func(maxTokens int) ([]byte, error)) (Attempt, error) {
+	maxTokens, retries, failures := InitialMaxTokens, 0, 0
+	for {
+		body, err := build(maxTokens)
+		if err != nil {
+			return Attempt{}, err
+		}
+		resp, latency, err := s.Send(ctx, body)
+
 		if err == nil && resp.Transient {
 			err = fmt.Errorf("vendor reported %q", resp.FinishReason)
 		}
 		if err != nil {
 			if (!provider.IsRetryable(err) && !resp.Transient) || failures >= maxRetries {
-				return round.Record{}, err
+				return Attempt{}, err
 			}
-			if err := r.Sleep(ctx, backoff(failures, err)); err != nil {
-				return round.Record{}, err
+			if err := sleep(ctx, backoff(failures, err)); err != nil {
+				return Attempt{}, err
 			}
 			failures++
 			retries++
 			continue
 		}
 
-		// 截断的结果作废，提高上限重跑 / A truncated result is discarded and rerun with a higher limit
 		if resp.Truncated {
 			if maxTokens*2 > MaxTokensCap {
-				return round.Record{}, fmt.Errorf("still truncated at max tokens %d", maxTokens)
+				return Attempt{}, fmt.Errorf("still truncated at max tokens %d", maxTokens)
 			}
 			maxTokens *= 2
 			retries++
 			continue
 		}
-
-		return round.Record{
-			Provider:      t.Vendor.Name,
-			Model:         t.Vendor.Model,
-			ModelReturned: resp.ModelReturned,
-			Request:       body,
-			Content:       resp.Content,
-			Reasoning:     resp.Reasoning,
-			FinishReason:  resp.FinishReason,
-			Usage:         resp.Usage,
-			LatencyMS:     latency.Milliseconds(),
-			Retries:       retries,
-			Timestamp:     r.Now().Format(time.RFC3339),
-		}, nil
+		return Attempt{Body: body, Response: resp, Latency: latency, Retries: retries}, nil
 	}
 }
 

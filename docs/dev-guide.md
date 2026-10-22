@@ -33,3 +33,4 @@
 ## CI
 
 `ci.yml` 在 `main` 与 `dev/**` 上运行 `gofmt` 检查、`go vet`、`go build`、`go test ./...`、`meyrin bank check` 与 `meyrin models check`，不使用任何 API key。
+`pages.yml` 在 `main` 更新时以 `meyrin site` 生成站点并发布到 GitHub Pages，同样不调用模型 API；仓库的 Pages 来源须设为 GitHub Actions。

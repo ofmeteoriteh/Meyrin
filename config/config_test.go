@@ -236,3 +236,30 @@ func TestVendorProxyURL(t *testing.T) {
 		}
 	}
 }
+
+func TestJudgeEndpoint(t *testing.T) {
+	eps := map[string]Endpoint{
+		"智谱":     {URL: "https://open.bigmodel.cn/api/paas/v4/chat/completions", Auth: "api-key", Protocol: OpenAIChat},
+		"OpenAI": {URL: "https://api.openai.com/v1/responses", Auth: AuthBearer, Protocol: OpenAIResponses},
+	}
+	env := map[string]string{"G_BASE_URL": "http://10.0.0.1:8045/v1/", "BAD_BASE_URL": "10.0.0.1:8045"}
+
+	api, err := Judge{Vendor: "智谱", Access: AccessAPI}.Endpoint(eps, env)
+	if err != nil || api != eps["智谱"] {
+		t.Fatalf("official = %+v, %v", api, err)
+	}
+	sub, err := Judge{Vendor: "G", Access: AccessSubscription, BaseURLEnv: "G_BASE_URL"}.Endpoint(eps, env)
+	if err != nil || sub.URL != "http://10.0.0.1:8045/v1/chat/completions" || sub.Auth != AuthBearer || sub.Protocol != OpenAIChat {
+		t.Fatalf("subscription = %+v, %v", sub, err)
+	}
+	for name, j := range map[string]Judge{
+		"非 Chat 协议": {Vendor: "OpenAI", Access: AccessAPI},
+		"缺端点":       {Vendor: "X", Access: AccessAPI},
+		"缺地址":       {Vendor: "G", Access: AccessSubscription, BaseURLEnv: "NONE_BASE_URL"},
+		"地址无协议":     {Vendor: "G", Access: AccessSubscription, BaseURLEnv: "BAD_BASE_URL"},
+	} {
+		if _, err := j.Endpoint(eps, env); err == nil {
+			t.Errorf("%s: Endpoint accepted %+v", name, j)
+		}
+	}
+}

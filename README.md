@@ -45,7 +45,21 @@ Run from the repository root; paths default to the repository layout.
 | `go run ./cmd/meyrin models check` | Verify `configs/models.yaml` against the spec, `docs/api-endpoints.md`, and `.env.example` |
 | `go run ./cmd/meyrin run -round <ROUND> -dry-run` | Print every request without sending it or reading credentials |
 | `go run ./cmd/meyrin run -round <ROUND> [-runs 3] [-only q1,q24] [-vendors <A,B>]` | Call the models under test and append results to `results/<ROUND>/`; rerunning resumes |
+| `go run ./cmd/meyrin metrics -round <ROUND>` | Compute program metrics for the round's responses into `results/<ROUND>/metrics.jsonl` |
+| `go run ./cmd/meyrin judge -round <ROUND> -dry-run` | Print every judge request without sending it or reading credentials |
+| `go run ./cmd/meyrin judge -round <ROUND> [-judges <A,B>]` | Have the judge models label the round's answers into `results/<ROUND>/judgments.jsonl`; rerunning resumes |
+| `go run ./cmd/meyrin stats -round <ROUND>` | Tally votes and compute reliability, self-preference bias and the review list into `results/<ROUND>/summary.json` |
+| `go run ./cmd/meyrin site` | Render every summarized round and the spec into the static site under `_site/` |
 | `go test ./...` | Run the unit tests |
+
+## Security
+
+- **Credentials** — API keys for the models under test and separate judge keys live in plaintext in `.env`, which is git-ignored; keys are redacted from logs, errors and recorded requests.
+- **Outbound requests** — `meyrin run` and `meyrin judge` call the vendor endpoints in `docs/api-endpoints.md`, the judge endpoints in `.env`, and kernel.org.
+- **Untrusted content** — model answers are third-party output; the site renders them without raw HTML and with dangerous links filtered.
+- **CI and Pages** — workflows use committed files only and no API keys.
+
+See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## Documentation
 
@@ -67,13 +81,17 @@ Released under the [Apache License 2.0](LICENSE) and the [Creative Commons Attri
 
 | Path | License |
 |---|---|
-| `docs/SPEC.md`, `data/questions.jsonl` | CC BY-NC 4.0 ([LICENSE-DATA](LICENSE-DATA)) |
+| `docs/SPEC.md`, `data/questions.jsonl`, `prompts/judge-system.md` | CC BY-NC 4.0 ([LICENSE-DATA](LICENSE-DATA)) |
+| `data/dict/STCharacters.txt`, `data/dict/TSCharacters.txt` | Apache-2.0, from OpenCC ([NOTICE](NOTICE)) |
+| `data/dict/emoji-test.txt` | Unicode License V3 ([NOTICE](NOTICE)) |
 | All other paths | Apache-2.0 ([LICENSE](LICENSE)) |
 
 This project is developed and maintained by individual contributors on a voluntary, non-commercial basis.
 
 This software is provided "as is", without warranty of any kind, express or implied. The authors are not liable for any damage arising from its use, including but not limited to data loss, system damage, or security incidents. See the [LICENSE](LICENSE) file for the full terms.
 
-`meyrin bank` and `meyrin models` read and write repository files only; they make no network requests. `meyrin run` sends the prompts in `data/questions.jsonl` to the vendor APIs configured in `configs/models.yaml`, using keys from `.env`; keys never appear in results or logs, and requests opt out of server-side storage where the API allows it. Running the test procedure in `docs/SPEC.md` sends prompts to third-party model APIs with credentials supplied by the runner, and the responses are third-party content governed by each vendor's terms.
+`meyrin bank`, `meyrin models`, `meyrin metrics`, `meyrin stats` and `meyrin site` read and write repository files only; they make no network requests. `meyrin run` sends the prompts in `data/questions.jsonl` to the vendor APIs configured in `configs/models.yaml`, using keys from `.env`; keys never appear in results or logs, and requests opt out of server-side storage where the API allows it. `meyrin judge` sends those prompts and the collected responses, without vendor or model names, to the judge models configured in `configs/models.yaml`, using the separate judge keys and addresses in `.env`. Running the test procedure in `docs/SPEC.md` sends prompts to third-party model APIs with credentials supplied by the runner, and the responses are third-party content governed by each vendor's terms. `meyrin site` publishes the committed answers as they are.
+
+The authors have no obligation to provide support, updates, or security fixes. To report a vulnerability, follow [SECURITY.md](SECURITY.md).
 
 Any commercial entity using this software is solely responsible for its own compliance with applicable laws and regulations, including but not limited to the EU Cyber Resilience Act (CRA) and any other regional requirements.

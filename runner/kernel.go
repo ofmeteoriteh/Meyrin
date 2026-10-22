@@ -29,7 +29,8 @@ func FetchKernelStable(ctx context.Context, url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	// 关闭只释放连接，失败不影响已读到的内容 / Closing only releases the connection; a failure cannot change what was read
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%s: HTTP %d", url, resp.StatusCode)
 	}

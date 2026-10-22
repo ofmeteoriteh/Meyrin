@@ -96,7 +96,8 @@ func (c *Client) Send(ctx context.Context, body []byte) (Response, time.Duration
 	if err != nil {
 		return Response{}, 0, err
 	}
-	defer resp.Body.Close()
+	// 关闭只释放连接，失败不影响已读到的内容 / Closing only releases the connection; a failure cannot change what was read
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	latency := time.Since(start)
 	if err != nil {

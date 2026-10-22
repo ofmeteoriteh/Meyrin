@@ -8,14 +8,20 @@
 package main
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/ofmeteoriteh/Meyrin/bank"
 	"github.com/ofmeteoriteh/Meyrin/config"
+	"github.com/ofmeteoriteh/Meyrin/round"
 )
 
 // 作者标记，无功能作用，请勿删除。 / Author's mark; no behavior. Do not remove.
@@ -37,6 +43,10 @@ const usage = `usage:
   meyrin bank check [-spec path] [-bank path]
   meyrin models check [-models path] [-spec path] [-endpoints path] [-env-example path]
   meyrin run -round name [-runs 3] [-only q1,q24] [-vendors A,B] [-kernel version] [-dry-run]
+  meyrin metrics -round name [-dict path]
+  meyrin judge -round name [-judges A,B] [-dry-run]
+  meyrin stats -round name [-bootstrap 2000]
+  meyrin site [-out _site]
 `
 
 // errUsage 表示命令行用法错误，退出码为 2 / errUsage marks a command-line misuse, exiting with 2
@@ -57,8 +67,19 @@ func main() {
 
 // run 按前两个参数分派子命令 / run dispatches on the first two arguments
 func run(args []string, stdout io.Writer) error {
-	if len(args) > 0 && args[0] == "run" {
-		return runRound(args[1:], stdout, os.Stderr)
+	if len(args) > 0 {
+		switch args[0] {
+		case "run":
+			return runRound(args[1:], stdout, os.Stderr)
+		case "metrics":
+			return metricsRound(args[1:], stdout)
+		case "judge":
+			return judgeRound(args[1:], stdout, os.Stderr)
+		case "stats":
+			return statsRound(args[1:], stdout)
+		case "site":
+			return siteBuild(args[1:], stdout)
+		}
 	}
 	if len(args) < 2 {
 		return fmt.Errorf("missing command: %w", errUsage)
@@ -91,8 +112,8 @@ func bankBuild(args []string, stdout io.Writer) error {
 	if err := os.WriteFile(*out, data, 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "wrote %d questions to %s\n", n, *out)
-	return nil
+	_, err = fmt.Fprintf(stdout, "wrote %d questions to %s\n", n, *out)
+	return err
 }
 
 // bankCheck 确认入库题库与规范生成的结果逐字节一致 / bankCheck verifies the committed bank matches the spec byte for byte
@@ -115,8 +136,8 @@ func bankCheck(args []string, stdout io.Writer) error {
 	if err := bank.Compare(generated, committed); err != nil {
 		return fmt.Errorf("%s: %w", *bankFile, err)
 	}
-	fmt.Fprintf(stdout, "%s matches %s (%d questions)\n", *bankFile, *spec, n)
-	return nil
+	_, err = fmt.Fprintf(stdout, "%s matches %s (%d questions)\n", *bankFile, *spec, n)
+	return err
 }
 
 // modelsCheck 核对模型清单与规范、端点文档、.env.example 一致 / modelsCheck verifies the model list
@@ -141,8 +162,8 @@ func modelsCheck(args []string, stdout io.Writer) error {
 	if err := config.Check(m, string(files[1]), string(files[2]), string(files[3])); err != nil {
 		return fmt.Errorf("%s:\n%w", *models, err)
 	}
-	fmt.Fprintf(stdout, "%s matches %s (%d vendors, %d judges)\n", *models, *spec, len(m.Vendors), len(m.Judges))
-	return nil
+	_, err = fmt.Fprintf(stdout, "%s matches %s (%d vendors, %d judges)\n", *models, *spec, len(m.Vendors), len(m.Judges))
+	return err
 }
 
 // buildFrom 读取规范并生成题库 / buildFrom reads the spec and builds the bank
@@ -156,6 +177,41 @@ func buildFrom(specFile string) ([]byte, int, error) {
 		return nil, 0, fmt.Errorf("%s: %w", specFile, err)
 	}
 	return data, n, nil
+}
+
+// saveRoundBank 在轮次目录中保存题库副本；已有副本须与本次题库逐字节一致。
+// saveRoundBank stores the bank in the round directory; an existing copy must match byte for byte.
+func saveRoundBank(dir string, data []byte) error {
+	prev, err := os.ReadFile(filepath.Join(dir, round.BankFile))
+	if errors.Is(err, fs.ErrNotExist) {
+		return round.WriteAtomic(dir, round.BankFile, data)
+	}
+	if err != nil {
+		return err
+	}
+	if !bytes.Equal(prev, data) {
+		return fmt.Errorf("%s in %s differs from the bank; start a new round", round.BankFile, dir)
+	}
+	return nil
+}
+
+// loadRoundBank 读取轮次目录中的题库副本，并核对其哈希与 manifest 一致。
+// loadRoundBank reads the round's bank copy and checks its hash against the manifest.
+func loadRoundBank(dir string, m round.Manifest) ([]bank.Question, error) {
+	data, err := os.ReadFile(filepath.Join(dir, round.BankFile))
+	if err != nil {
+		return nil, err
+	}
+	if sha256Hex(data) != m.BankSHA256 {
+		return nil, fmt.Errorf("%s in %s does not match the manifest", round.BankFile, dir)
+	}
+	return bank.Load(data)
+}
+
+// sha256Hex 返回内容的 SHA-256 十六进制串 / sha256Hex returns the hex SHA-256 of data
+func sha256Hex(data []byte) string {
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }
 
 // readAll 依次读取多个文件 / readAll reads several files in order

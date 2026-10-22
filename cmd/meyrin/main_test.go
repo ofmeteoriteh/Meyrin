@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/ofmeteoriteh/Meyrin/round"
 )
 
 // repo 返回仓库根目录下的路径 / repo returns a path under the repository root
@@ -65,4 +67,25 @@ func TestUsageErrors(t *testing.T) {
 			t.Errorf("run(%q) = %v, want a usage error", args, err)
 		}
 	}
+}
+
+// newRound 建立含 manifest 与题库副本的轮次目录 / newRound creates a round directory with a manifest and a bank copy
+func newRound(t *testing.T, results string, m round.Manifest) string {
+	t.Helper()
+	dir := filepath.Join(results, m.Round)
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bankData, err := os.ReadFile(repo(bankPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m.BankSHA256 = sha256Hex(bankData)
+	if err := round.SaveManifest(dir, m); err != nil {
+		t.Fatal(err)
+	}
+	if err := saveRoundBank(dir, bankData); err != nil {
+		t.Fatal(err)
+	}
+	return dir
 }

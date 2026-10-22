@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -63,7 +64,7 @@ func newRunner(qs []bank.Question, runs int, s Sender) (*Runner, *[]time.Duratio
 			Sender:   s,
 		}},
 		Runs: runs,
-		Log:  io.Discard,
+		Log:  log.New(io.Discard, "", 0),
 		Sleep: func(_ context.Context, d time.Duration) error {
 			waits = append(waits, d)
 			return nil
@@ -76,7 +77,7 @@ func newRunner(qs []bank.Question, runs int, s Sender) (*Runner, *[]time.Duratio
 func runOnce(t *testing.T, r *Runner, done map[round.Key]bool) ([]round.Record, int) {
 	t.Helper()
 	dir := t.TempDir()
-	w, err := round.OpenWriter(dir)
+	w, err := round.OpenWriter[round.Record](dir, round.ResponsesFile)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,9 @@ func runOnce(t *testing.T, r *Runner, done map[round.Key]bool) ([]round.Record, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	w.Close()
+	if err := w.Close(); err != nil {
+		t.Fatal(err)
+	}
 	recs, err := round.LoadRecords(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -198,8 +201,15 @@ func TestRunStopsOnCancel(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	r, _ := newRunner([]bank.Question{single}, 3, &fakeSender{})
-	w, _ := round.OpenWriter(t.TempDir())
-	defer w.Close()
+	w, err := round.OpenWriter[round.Record](t.TempDir(), round.ResponsesFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := w.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 	if _, err := r.Run(ctx, w, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("err = %v, want context.Canceled", err)
 	}
@@ -251,9 +261,9 @@ func TestFetchKernelStable(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/ok":
-			w.Write([]byte(`{"latest_stable":{"version":"7.3"},"releases":[]}`))
+			respond(t, w, `{"latest_stable":{"version":"7.3"},"releases":[]}`)
 		case "/empty":
-			w.Write([]byte(`{"releases":[]}`))
+			respond(t, w, `{"releases":[]}`)
 		default:
 			w.WriteHeader(http.StatusBadGateway)
 		}
@@ -280,4 +290,12 @@ func equalDurations(a, b []time.Duration) bool {
 		}
 	}
 	return true
+}
+
+// respond 在测试服务器中写出响应体；处理函数运行在其他 goroutine，只能用 t.Error。
+// respond writes a response body in a test server; handlers run on another goroutine, so it uses t.Error.
+func respond(t *testing.T, w http.ResponseWriter, body string) {
+	if _, err := io.WriteString(w, body); err != nil {
+		t.Error(err)
+	}
 }

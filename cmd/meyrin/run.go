@@ -2,11 +2,10 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/signal"
 	"slices"
@@ -92,9 +91,11 @@ func runRound(args []string, stdout, stderr io.Writer) error {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	sum := sha256.Sum256(bankData)
-	manifest, err := openManifest(ctx, dir, o, questions[0].Version, hex.EncodeToString(sum[:]), targets)
+	manifest, err := openManifest(ctx, dir, o, questions[0].Version, sha256Hex(bankData), targets)
 	if err != nil {
+		return err
+	}
+	if err := saveRoundBank(dir, bankData); err != nil {
 		return err
 	}
 
@@ -106,21 +107,21 @@ func runRound(args []string, stdout, stderr io.Writer) error {
 	for _, r := range recs {
 		done[r.Key()] = true
 	}
-	w, err := round.OpenWriter(dir)
+	w, err := round.OpenWriter[round.Record](dir, round.ResponsesFile)
 	if err != nil {
 		return err
 	}
-	defer w.Close()
 
 	r := &runner.Runner{
 		Questions: questions,
 		Targets:   targets,
 		Runs:      o.runs,
-		Log:       stderr,
+		Log:       log.New(stderr, "", 0),
 		Sleep:     runner.SleepContext,
 		Now:       time.Now,
 	}
 	failed, runErr := r.Run(ctx, w, done)
+	runErr = errors.Join(runErr, w.Close())
 
 	manifest.Run.FinishedAt = time.Now().Format(time.RFC3339)
 	if err := round.SaveManifest(dir, manifest); err != nil {
@@ -132,8 +133,8 @@ func runRound(args []string, stdout, stderr io.Writer) error {
 	if failed > 0 {
 		return fmt.Errorf("%d conversations failed; rerun the same command to retry them", failed)
 	}
-	fmt.Fprintf(stdout, "round %s complete in %s\n", o.round, dir)
-	return nil
+	_, err = fmt.Fprintf(stdout, "round %s complete in %s\n", o.round, dir)
+	return err
 }
 
 // selectQuestions 读取题库并按 -only 过滤 / selectQuestions loads the bank and applies -only
