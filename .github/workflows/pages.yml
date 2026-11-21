@@ -1,0 +1,55 @@
+# 从入库的结果与规范生成静态站并发布到 GitHub Pages；不调用任何模型 API，不使用任何 API key。
+# / Build the static site from committed results and the spec, and publish it to GitHub Pages;
+# / no model API calls and no API keys.
+name: Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GOFLAGS: -trimpath
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version: "1.27.3"
+
+      - uses: actions/configure-pages@v6.0.0
+
+      - name: Build site
+        run: go run ./cmd/meyrin site -out _site
+
+      - uses: actions/upload-pages-artifact@v5.0.0
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5.0.1

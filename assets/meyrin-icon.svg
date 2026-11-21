@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+  <style>
+    .moon { fill: #1b1f24 }
+    @media (prefers-color-scheme: dark) { .moon { fill: #e6edf3 } }
+  </style>
+  <defs>
+    <mask id="bite">
+      <rect width="256" height="256" fill="#fff"/>
+      <circle cx="160" cy="104" r="72"/>
+    </mask>
+    <linearGradient id="trail" gradientUnits="userSpaceOnUse" x1="148" y1="118" x2="240.1" y2="35">
+      <stop offset="0" stop-color="#4da3ff"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <circle class="moon" cx="118" cy="144" r="88" mask="url(#bite)"/>
+  <g fill="url(#trail)">
+    <path d="M161.4 132.9 L241.2 36.1 L239.1 33.9 L134.6 103.1Z"/>
+    <circle cx="148" cy="118" r="20"/>
+  </g>
+</svg>

@@ -1,0 +1,33 @@
+{{define "answer"}}{{template "head" .}}
+<h1><a href="{{.Root}}r/{{.Round.Name}}/q/{{.Q.ID}}.html">{{.Q.ID}}. {{.Q.Title}}</a> · <a href="{{.Root}}r/{{.Round.Name}}/m/{{.A.Key.Provider}}.html">{{.A.Key.Provider}}</a> · 第 {{.A.Key.Run}} 次</h1>
+{{with .A.Verdict}}<p><strong>汇总：</strong>{{if .Outcome}}<span class="outcome">{{.Outcome}}</span> {{end}}{{range .Tags}}<span class="tag">{{.}}</span> {{end}}</p>{{end}}
+{{range .A.Turns}}
+<section class="turn">
+<h2>第 {{.Record.Turn}} 轮</h2>
+<pre class="prompt">{{.Prompt}}</pre>
+<div class="answer prose">{{.Content}}</div>
+<p class="meta"><code>{{.Record.ModelReturned}}</code> · finish_reason {{.Record.FinishReason}} · {{.Record.LatencyMS}} ms · 重试 {{.Record.Retries}} 次</p>
+{{if .Record.Reasoning}}<details><summary>推理内容（不参与评审）</summary><pre class="reasoning">{{.Record.Reasoning}}</pre></details>{{end}}
+{{with .Metrics}}<details><summary>程序指标</summary>
+<table class="compact"><tbody>
+<tr><th>chars</th><td>{{.Metrics.Chars}}</td><th>words_cjk</th><td>{{.Metrics.WordsCJK}}</td><th>cjk_ratio</th><td>{{num .Metrics.CJKRatio}}</td></tr>
+<tr><th>list_items</th><td>{{.Metrics.ListItems}}</td><th>headings</th><td>{{.Metrics.Headings}}</td><th>bold_line</th><td>{{.Metrics.BoldLine}}</td></tr>
+<tr><th>bold</th><td>{{.Metrics.Bold}}</td><th>tables</th><td>{{.Metrics.Tables}}</td><th>emoji</th><td>{{.Metrics.Emoji}}</td></tr>
+<tr><th>code_blocks</th><td>{{.Metrics.CodeBlocks}}</td><th>chars_before_code</th><td>{{num .Metrics.CharsBeforeCode}}</td><th>trad / simp</th><td>{{.Metrics.TradChars}} / {{.Metrics.SimpChars}}</td></tr>
+</tbody></table>
+{{range .Checks}}<div><code>{{.Expr}}</code>：{{num .Value}}{{with .Pass}}（{{if .}}通过{{else}}未通过{{end}}）{{end}}</div>{{end}}
+</details>{{end}}
+</section>
+{{end}}
+{{if .A.Judgments}}<h2>评审</h2>
+{{range .A.Judgments}}<section class="judgment">
+<h3>{{.Judge}}{{if not .Valid}} · 输出无效{{end}}</h3>
+{{with .Judgment}}
+{{with .Outcome}}<p><strong>结果项：</strong><span class="outcome">{{.Value}}</span>{{if .Evidence}} —— “{{.Evidence}}”{{end}}</p>{{end}}
+{{if .Tags}}<ul>{{range .Tags}}<li><span class="tag tag-{{.Value}}">{{.Tag}}</span> {{.Value}}{{if .Evidence}} —— “{{.Evidence}}”{{end}}</li>{{end}}</ul>{{end}}
+{{if .Notes}}<p class="meta">{{.Notes}}</p>{{end}}
+{{end}}
+{{if .Errors}}<details><summary>未通过校验 {{len .Errors}} 次</summary><ul>{{range .Errors}}<li><code>{{.}}</code></li>{{end}}</ul></details>{{end}}
+</section>{{end}}
+{{end}}
+{{template "foot" .}}{{end}}

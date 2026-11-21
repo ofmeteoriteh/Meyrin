@@ -1,0 +1,22 @@
+{{define "home"}}{{template "head" .}}
+<h1>Meyrin</h1>
+<p>同一组低难度提示词，原样发给各家模型的官方 API，比较“怎么回答”而不是“答得对不对”。题目、评审规则与阈值见<a href="{{.Root}}spec.html">测试规范</a>。</p>
+<h2>测试轮次</h2>
+{{if .Rounds}}
+<table>
+<thead><tr><th>轮次</th><th>规范版本</th><th>开始时间</th><th>厂商</th><th>回答</th><th>评审</th></tr></thead>
+<tbody>
+{{range .Rounds}}<tr>
+<td><a href="{{$.Root}}r/{{.Name}}/index.html">{{.Name}}</a></td>
+<td>{{.Manifest.SpecVersion}}</td>
+<td>{{with .Manifest.Run}}{{.StartedAt}}{{end}}</td>
+<td>{{len .Providers}}</td>
+<td>{{len .Responses}}</td>
+<td>{{len .Judgments}}</td>
+</tr>{{end}}
+</tbody>
+</table>
+{{else}}
+<p>尚无已发布的测试轮次。</p>
+{{end}}
+{{template "foot" .}}{{end}}

@@ -1,0 +1,56 @@
+# 受测与评审模型清单。厂商名与顺序须与 docs/SPEC.md「受测模型：」「评审模型：」两表一致，
+# 端点与协议取自 docs/api-endpoints.md，由 `meyrin models check` 核对。
+# 需要代理的厂商加 proxy: http://host:port（或 socks5://），未设置则直连，不读取 HTTPS_PROXY。
+vendors:
+  - name: OpenAI
+    key_env: OPENAI_API_KEY
+    model: ""
+  - name: Google
+    key_env: GEMINI_API_KEY
+    model: ""
+  - name: Anthropic
+    key_env: ANTHROPIC_API_KEY
+    model: ""
+  - name: xAI
+    key_env: XAI_API_KEY
+    model: ""
+  - name: Meta
+    key_env: META_API_KEY
+    model: ""
+  - name: DeepSeek
+    key_env: DEEPSEEK_API_KEY
+    model: ""
+  - name: 智谱
+    key_env: ZHIPU_API_KEY
+    model: ""
+  - name: 阿里云
+    key_env: DASHSCOPE_API_KEY
+    model: ""
+  - name: 腾讯
+    key_env: TENCENT_API_KEY
+    model: ""
+  - name: 小米
+    key_env: MIMO_API_KEY
+    model: ""
+  - name: 月之暗面
+    key_env: MOONSHOT_API_KEY
+    model: ""
+  - name: 字节跳动
+    key_env: ARK_API_KEY
+    model: ""
+  - name: MiniMax
+    key_env: MINIMAX_API_KEY
+    model: ""
+
+# 评审模型取冻结时各系列的最新版本，系列见 docs/architecture.md「模型清单」。
+# 评审使用独立凭据；订阅方式的地址写在 base_url_env 指向的 .env 变量中，不入库。
+judges:
+  - vendor: Google
+    access: 订阅
+    key_env: REVIEW_GEMINI_API_KEY
+    base_url_env: REVIEW_GEMINI_BASE_URL
+    model: gemini-3.8-flash
+  - vendor: DeepSeek
+    access: 官方 API
+    key_env: REVIEW_DEEPSEEK_API_KEY
+    model: deepseek-flash

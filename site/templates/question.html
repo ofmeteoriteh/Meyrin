@@ -1,0 +1,20 @@
+{{define "question"}}{{template "head" .}}
+<h1>{{.Q.ID}}. {{.Q.Title}}</h1>
+<p class="meta">{{.Q.Dimension}}{{if gt (len .Q.Turns) 1}} · {{len .Q.Turns}} 轮，判定第 {{.Q.JudgedTurn}} 轮{{end}}</p>
+{{range $i, $t := .Q.Turns}}<h3>第 {{$i | inc}} 轮提示词</h3><pre class="prompt">{{$t}}</pre>{{end}}
+{{with .Q.Reference}}<p><strong>参考：</strong>{{.}}</p>{{end}}
+{{if .Q.Outcomes}}<h2>结果选项</h2><dl>{{range .Q.Outcomes}}<dt><code>{{.Value}}</code></dt><dd>{{.Definition}}</dd>{{end}}</dl>{{end}}
+{{if .Q.Flags}}<p><strong>适用标签：</strong>{{join .Q.Flags "、"}}</p>{{end}}
+<h2>各厂商</h2>
+<table>
+<thead><tr><th>厂商</th><th>汇总</th><th>程序检查</th><th>回答</th></tr></thead>
+<tbody>
+{{range $p := .Providers}}{{$c := cell $.Cells $p $.Q.ID}}{{if $c.Runs}}<tr>
+<td><a href="{{$.Root}}r/{{$.Round.Name}}/m/{{$p}}.html">{{$p}}</a></td>
+<td>{{template "cellsummary" $c}}</td>
+<td>{{range $c.Checks}}<div><code>{{.Expr}}</code>：{{range .Values}}{{num .}} {{end}}{{with .Passes}}（通过 {{.}}/{{$c.Runs}}）{{end}}{{with .Median}}，中位数 {{num .}}{{end}}{{with .AbsMedian}}，绝对值中位数 {{num .}}{{end}}</div>{{end}}</td>
+<td>{{range runs $c}}<a href="{{$.Root}}r/{{$.Round.Name}}/a/{{$p}}/{{$.Q.ID}}-{{.}}.html">第 {{.}} 次</a> {{end}}</td>
+</tr>{{end}}{{end}}
+</tbody>
+</table>
+{{template "foot" .}}{{end}}

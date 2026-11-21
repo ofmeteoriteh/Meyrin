@@ -1,0 +1,18 @@
+{{define "round"}}{{template "head" .}}
+<h1>记录表 · {{.Round.Name}}</h1>
+<p>每格为各次运行汇总后成立的结果项与标签及出现比例；<code>分歧</code> 表示两位评审未达成一致。点击题号查看各厂商的回答。</p>
+<p><input type="search" placeholder="筛选题目或内容" data-filter="record"></p>
+<div class="scroll">
+<table id="record" class="record">
+<thead><tr><th data-sort="num">题号</th><th data-sort="text">题目</th>{{range .Providers}}<th data-sort="text"><a href="{{$.Root}}r/{{$.Round.Name}}/m/{{.}}.html">{{.}}</a></th>{{end}}</tr></thead>
+<tbody>
+{{range $q := .Round.Questions}}<tr>
+<td><a href="{{$.Root}}r/{{$.Round.Name}}/q/{{$q.ID}}.html">{{$q.ID}}</a></td>
+<td>{{$q.Title}}</td>
+{{range $p := $.Providers}}{{$c := cell $.Cells $p $q.ID}}<td>{{if $c.Runs}}{{template "cellsummary" $c}}{{end}}</td>{{end}}
+</tr>{{end}}
+</tbody>
+<tfoot><tr><th></th><th><code>model_returned</code></th>{{range .Providers}}<td>{{join (index $.Returned .) "、"}}</td>{{end}}</tr></tfoot>
+</table>
+</div>
+{{template "foot" .}}{{end}}
